@@ -139,19 +139,21 @@ public:
     }
 
     double Evaluate(const SheetArgs& args) const override {
+        double left_value = lhs_->Evaluate(args), right_value = rhs_->Evaluate(args);
+		
         switch (type_) {
             case Type::Add:
-                return lhs_->Evaluate(args) + rhs_->Evaluate(args);
+                return left_value + right_value;
     
             case Type::Subtract:
-                return lhs_->Evaluate(args) - rhs_->Evaluate(args);
+                return left_value - right_value;
     
             case Type::Multiply:
-                return lhs_->Evaluate(args) * rhs_->Evaluate(args);
+                return left_value * right_value;
     
             case Type::Divide: {
-                if (std::isfinite(lhs_->Evaluate(args) / rhs_->Evaluate(args)))
-                    return lhs_->Evaluate(args) / rhs_->Evaluate(args);
+                if (std::isfinite(left_value / right_value))
+                    return left_value / right_value;
                 else
                     throw FormulaError{ FormulaError::Category::Arithmetic };
             } 
