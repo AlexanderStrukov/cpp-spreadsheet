@@ -72,7 +72,7 @@ public:
     virtual ~Expr() = default;
     virtual void Print(std::ostream& out) const = 0;
     virtual void DoPrintFormula(std::ostream& out, ExprPrecedence precedence) const = 0;
-    virtual double Evaluate(/*добавьте сюда нужные аргументы*/ args) const = 0;
+    virtual double Evaluate(const SheetArgs& args) const = 0;
 
     // higher is tighter
     virtual ExprPrecedence GetPrecedence() const = 0;
@@ -104,12 +104,8 @@ public:
         Divide = '/',
     };
 
-public:
     explicit BinaryOpExpr(Type type, std::unique_ptr<Expr> lhs, std::unique_ptr<Expr> rhs)
-        : type_(type)
-        , lhs_(std::move(lhs))
-        , rhs_(std::move(rhs)) {
-    }
+        : type_(type), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
 
     void Print(std::ostream& out) const override {
         out << '(' << static_cast<char>(type_) << ' ';
@@ -142,8 +138,26 @@ public:
         }
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/) const override {
-			// Скопируйте ваше решение из предыдущих уроков.
+    double Evaluate(const SheetArgs& args) const override {
+        switch (type_) {
+            case Type::Add:
+                return lhs_->Evaluate(args) + rhs_->Evaluate(args);
+    
+            case Type::Subtract:
+                return lhs_->Evaluate(args) - rhs_->Evaluate(args);
+    
+            case Type::Multiply:
+                return lhs_->Evaluate(args) * rhs_->Evaluate(args);
+    
+            case Type::Divide: {
+                if (std::isfinite(lhs_->Evaluate(args) / rhs_->Evaluate(args)))
+                    return lhs_->Evaluate(args) / rhs_->Evaluate(args);
+                else
+                    throw FormulaError{ FormulaError::Category::Arithmetic };
+            } 
+            default:
+                throw FormulaError{ FormulaError::Category::Arithmetic };
+        }
     }
 
 private:
@@ -161,9 +175,7 @@ public:
 
 public:
     explicit UnaryOpExpr(Type type, std::unique_ptr<Expr> operand)
-        : type_(type)
-        , operand_(std::move(operand)) {
-    }
+        : type_(type), operand_(std::move(operand)) {}
 
     void Print(std::ostream& out) const override {
         out << '(' << static_cast<char>(type_) << ' ';
@@ -180,8 +192,11 @@ public:
         return EP_UNARY;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
-        // Скопируйте ваше решение из предыдущих уроков.
+    double Evaluate(const SheetArgs& args) const override {
+        if (type_ == UnaryMinus)
+            return -1 * operand_->Evaluate(args);
+        else
+            return operand_->Evaluate(args);
     }
 
 private:
@@ -192,8 +207,7 @@ private:
 class CellExpr final : public Expr {
 public:
     explicit CellExpr(const Position* cell)
-        : cell_(cell) {
-    }
+        : cell_(cell) {}
 
     void Print(std::ostream& out) const override {
         if (!cell_->IsValid()) {
@@ -211,8 +225,8 @@ public:
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
-        // реализуйте метод.
+    double Evaluate(const SheetArgs& args) const override {
+        return args(*cell_);
     }
 
 private:
@@ -222,8 +236,7 @@ private:
 class NumberExpr final : public Expr {
 public:
     explicit NumberExpr(double value)
-        : value_(value) {
-    }
+        : value_(value) {}
 
     void Print(std::ostream& out) const override {
         out << value_;
@@ -237,7 +250,7 @@ public:
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
+    double Evaluate(const SheetArgs& args) const override {
         return value_;
     }
 
@@ -391,8 +404,8 @@ void FormulaAST::PrintFormula(std::ostream& out) const {
     root_expr_->PrintFormula(out, ASTImpl::EP_ATOM);
 }
 
-double FormulaAST::Execute(/*добавьте нужные аргументы*/ args) const {
-    return root_expr_->Evaluate(/*добавьте нужные аргументы*/ args);
+double FormulaAST::Execute(const SheetArgs& args) const {
+    return root_expr_->Evaluate(args);
 }
 
 FormulaAST::FormulaAST(std::unique_ptr<ASTImpl::Expr> root_expr, std::forward_list<Position> cells)
